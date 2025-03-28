@@ -1,42 +1,26 @@
 const express = require("express");
-const multer = require("multer");
-const { Queue, Worker } = require("bullmq");
 const cors = require("cors");
-const redis = require("redis");
 
 const app = express();
 app.use(cors());
 
-const upload = multer({ dest: "uploads/" });
-const processingQueue = new Queue("documentProcessingQueue", {
-  connection: { host: "localhost", port: 6379 },
-});
+const processingStatus = {}; // In-memory store
 
-let processingStatus = {}; // In-memory status tracking
-
-app.post("/upload", upload.single("document"), async (req, res) => {
-  const processingId = Date.now().toString(); // Generate unique ID
+app.post("/upload", (req, res) => {
+  const processingId = Date.now().toString();
   processingStatus[processingId] = "processing";
 
-  await processingQueue.add("processDocument", { processingId });
+  // Simulate processing with a 30-second delay
+  setTimeout(() => {
+    processingStatus[processingId] = "completed";
+  }, 30000);
 
   res.json({ processing_id: processingId });
 });
 
 app.get("/status/:processingId", (req, res) => {
-  const { processingId } = req.params;
-  res.json({ status: processingStatus[processingId] || "not found" });
+  const status = processingStatus[req.params.processingId] || "not found";
+  res.json({ status });
 });
 
-// Background worker
-new Worker(
-  "documentProcessingQueue",
-  async (job) => {
-    const { processingId } = job.data;
-    await new Promise((resolve) => setTimeout(resolve, 30000)); // Simulate processing delay
-    processingStatus[processingId] = "completed";
-  },
-  { connection: { host: "localhost", port: 6379 } }
-);
-
-app.listen(5000, () => console.log("Server running on port 5000"));
+app.listen(5000, () => console.log("Backend running on port 5000"));
